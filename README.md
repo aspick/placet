@@ -46,6 +46,7 @@ attachments:
 - [x] コンセプトと設計判断の整理（[docs/concept.md](docs/concept.md)）
 - [x] 正規形の JSON Schema（[spec/schema/](spec/schema/policy-document.schema.json)）
 - [x] Rails / Ruby アダプタの API 設計（[docs/rails-usage.md](docs/rails-usage.md)）
+- [x] 動作するサンプルアプリ（[examples/sinatra/](examples/sinatra/)）
 - [ ] リファレンス実装（Ruby ランタイム + 適合性 fixture）
 
 ## リポジトリ構成
@@ -56,6 +57,7 @@ attachments:
 - `spec/` — コア仕様（正規形の JSON Schema・適合性テスト fixture、言語非依存）
 - `packages/ruby/` — Ruby ランタイム（gem: [placet](https://rubygems.org/gems/placet)）
 - `packages/js/` — JavaScript / TypeScript ランタイム（npm: [placet](https://www.npmjs.com/package/placet)）
+- `examples/sinatra/` — 設計を動かして体験できるサンプルアプリ（簡易ランタイム同梱）
 
 ## 名前について
 
