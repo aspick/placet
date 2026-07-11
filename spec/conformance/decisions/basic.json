@@ -1,0 +1,78 @@
+{
+  "name": "basic",
+  "document": {
+    "version": 1,
+    "policies": [
+      { "name": "base-member", "statements": [
+        { "effect": "allow", "actions": ["post:view", "comment:view", "comment:create"] }
+      ] },
+      { "name": "post-editor", "statements": [
+        { "effect": "allow", "actions": ["post:create", "post:update", "post:delete"] }
+      ] },
+      { "name": "suspended", "statements": [
+        { "effect": "deny", "actions": ["*"] }
+      ] }
+    ],
+    "attachments": [
+      { "principal": "role:member", "policies": ["base-member"] },
+      { "principal": "role:editor", "policies": ["post-editor"] },
+      { "principal": "flag:suspended", "policies": ["suspended"] }
+    ]
+  },
+  "cases": [
+    {
+      "name": "member can view",
+      "principals": ["user:1", "role:member"],
+      "action": "post:view",
+      "expect": {
+        "decision": "permit",
+        "basis": "explicit_allow",
+        "valid_determinants": [
+          { "principal": "role:member", "policy": "base-member", "statement": 0, "effect": "allow" }
+        ]
+      }
+    },
+    {
+      "name": "member cannot delete (implicit deny)",
+      "principals": ["user:1", "role:member"],
+      "action": "post:delete",
+      "expect": { "decision": "deny", "basis": "implicit_deny" }
+    },
+    {
+      "name": "editor can update",
+      "principals": ["user:2", "role:member", "role:editor"],
+      "action": "post:update",
+      "expect": {
+        "decision": "permit",
+        "basis": "explicit_allow",
+        "valid_determinants": [
+          { "principal": "role:editor", "policy": "post-editor", "statement": 0, "effect": "allow" }
+        ]
+      }
+    },
+    {
+      "name": "suspended editor is denied (deny-overrides)",
+      "principals": ["user:2", "role:member", "role:editor", "flag:suspended"],
+      "action": "post:update",
+      "expect": {
+        "decision": "deny",
+        "basis": "explicit_deny",
+        "valid_determinants": [
+          { "principal": "flag:suspended", "policy": "suspended", "statement": 0, "effect": "deny" }
+        ]
+      }
+    },
+    {
+      "name": "empty principal set (implicit deny)",
+      "principals": [],
+      "action": "post:view",
+      "expect": { "decision": "deny", "basis": "implicit_deny" }
+    },
+    {
+      "name": "principal is matched exactly, not by prefix",
+      "principals": ["role:members"],
+      "action": "post:view",
+      "expect": { "decision": "deny", "basis": "implicit_deny" }
+    }
+  ]
+}

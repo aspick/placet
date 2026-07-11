@@ -1,0 +1,91 @@
+{
+  "name": "wildcards",
+  "document": {
+    "version": 1,
+    "policies": [
+      { "name": "admin", "statements": [
+        { "effect": "allow", "actions": ["*"] }
+      ] },
+      { "name": "readonly-auditor", "statements": [
+        { "effect": "allow", "actions": ["*:view"] },
+        { "effect": "deny", "actions": ["*:create", "*:update", "*:delete"] }
+      ] },
+      { "name": "post-admin", "statements": [
+        { "effect": "allow", "actions": ["post:*"] }
+      ] }
+    ],
+    "attachments": [
+      { "principal": "role:admin", "policies": ["admin"] },
+      { "principal": "role:auditor", "policies": ["readonly-auditor"] },
+      { "principal": "role:post-admin", "policies": ["post-admin"] }
+    ]
+  },
+  "cases": [
+    {
+      "name": "star matches any action",
+      "principals": ["role:admin"],
+      "action": "post:delete",
+      "expect": {
+        "decision": "permit",
+        "basis": "explicit_allow",
+        "valid_determinants": [
+          { "principal": "role:admin", "policy": "admin", "statement": 0, "effect": "allow" }
+        ]
+      }
+    },
+    {
+      "name": "star-view matches any resource",
+      "principals": ["role:auditor"],
+      "action": "comment:view",
+      "expect": {
+        "decision": "permit",
+        "basis": "explicit_allow",
+        "valid_determinants": [
+          { "principal": "role:auditor", "policy": "readonly-auditor", "statement": 0, "effect": "allow" }
+        ]
+      }
+    },
+    {
+      "name": "auditor is explicitly denied updates",
+      "principals": ["role:auditor"],
+      "action": "post:update",
+      "expect": {
+        "decision": "deny",
+        "basis": "explicit_deny",
+        "valid_determinants": [
+          { "principal": "role:auditor", "policy": "readonly-auditor", "statement": 1, "effect": "deny" }
+        ]
+      }
+    },
+    {
+      "name": "resource-star matches operations of that resource",
+      "principals": ["role:post-admin"],
+      "action": "post:update",
+      "expect": {
+        "decision": "permit",
+        "basis": "explicit_allow",
+        "valid_determinants": [
+          { "principal": "role:post-admin", "policy": "post-admin", "statement": 0, "effect": "allow" }
+        ]
+      }
+    },
+    {
+      "name": "resource-star does not match other resources",
+      "principals": ["role:post-admin"],
+      "action": "comment:view",
+      "expect": { "decision": "deny", "basis": "implicit_deny" }
+    },
+    {
+      "name": "wildcard deny overrides wildcard allow across principals",
+      "principals": ["role:admin", "role:auditor"],
+      "action": "post:update",
+      "expect": {
+        "decision": "deny",
+        "basis": "explicit_deny",
+        "valid_determinants": [
+          { "principal": "role:auditor", "policy": "readonly-auditor", "statement": 1, "effect": "deny" }
+        ]
+      }
+    }
+  ]
+}

@@ -2,7 +2,16 @@
 
 > 宣言的な権限管理ライブラリ — simplified IAM-style authorization（コンセプト策定中）
 
-placet の Ruby ランタイムです。現在は**コンセプト策定フェーズ**であり、このバージョンは名前確保のためのプレースホルダです。`require "placet"` するとその旨のエラーが送出されます。
+placet の Ruby ランタイム（リファレンス実装）です。コア評価エンジン（PDP）・Ruby DSL・principal 導出（resolver / derive / relation）・scope 合成を実装し、[spec/conformance](../../spec/conformance) の適合性テストをすべてパスします。
+
+**RubyGems に公開されている 0.0.1 は名前確保のためのプレースホルダのままです**（実装入りのリリースは未定）。現時点で試す場合は `gem "placet", path: ...` または [examples/sinatra](../../examples/sinatra) を参照してください。
+
+テストの実行:
+
+```sh
+cd packages/ruby
+for f in test/*_test.rb; do ruby -Ilib -Itest "$f"; done
+```
 
 - プロジェクト全体: https://github.com/aspick/placet
 - 設計ドキュメント: https://github.com/aspick/placet/blob/main/docs/concept.md

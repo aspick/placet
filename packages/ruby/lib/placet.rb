@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "placet/version"
-
-raise NotImplementedError,
-      "placet is not implemented yet — this version is a placeholder to reserve the gem name. " \
-      "See https://github.com/aspick/placet for the concept and roadmap."
+require_relative "placet/errors"
+require_relative "placet/decision"
+require_relative "placet/document"
+require_relative "placet/engine"
+require_relative "placet/dsl"
+require_relative "placet/runtime"

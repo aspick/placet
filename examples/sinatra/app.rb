@@ -2,7 +2,7 @@
 
 require "sinatra"
 require "json"
-require_relative "placet_prototype"
+require "placet"
 
 # ============================================================================
 # placet サンプルアプリ（Sinatra）

@@ -2,7 +2,7 @@
 
 [concept.md](../../docs/concept.md) と [rails-usage.md](../../docs/rails-usage.md) の設計を、動かして体験できるサンプル。多テナントのブログ的なアプリを題材に、placet の主要コンセプトを一通り盛り込んである。
 
-placet 本体（`packages/ruby`）は未実装のため、**将来の public API と同形の簡易ランタイム** [placet_prototype.rb](placet_prototype.rb) を同梱している。本実装が完成したら require を gem に差し替えるだけで [app.rb](app.rb) が動くことを意図した、API 設計の検証を兼ねる構成。
+placet 本体は [packages/ruby](../../packages/ruby) のリファレンス実装を `path:` 指定で参照している（当初は簡易ランタイムを同梱していたが、本実装の完成に伴い require の差し替えだけで移行済み——アプリコードは 1 行も変わっていない）。
 
 ## 起動
 

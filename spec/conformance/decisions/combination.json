@@ -1,0 +1,76 @@
+{
+  "name": "combination",
+  "document": {
+    "version": 1,
+    "policies": [
+      { "name": "conflicted", "statements": [
+        { "effect": "allow", "actions": ["post:view"] },
+        { "effect": "deny", "actions": ["post:view"] }
+      ] },
+      { "name": "reader", "statements": [
+        { "effect": "allow", "actions": ["post:view"] }
+      ] },
+      { "name": "blocker", "statements": [
+        { "effect": "deny", "actions": ["post:view"] }
+      ] }
+    ],
+    "attachments": [
+      { "principal": "role:conflicted", "policies": ["conflicted"] },
+      { "principal": "role:reader", "policies": ["reader"] },
+      { "principal": "role:reader", "policies": ["blocker"] },
+      { "principal": "role:viewer", "policies": ["reader"] },
+      { "principal": "role:second", "policies": ["reader"] }
+    ]
+  },
+  "cases": [
+    {
+      "name": "deny-overrides applies within a single policy",
+      "principals": ["role:conflicted"],
+      "action": "post:view",
+      "expect": {
+        "decision": "deny",
+        "basis": "explicit_deny",
+        "valid_determinants": [
+          { "principal": "role:conflicted", "policy": "conflicted", "statement": 1, "effect": "deny" }
+        ]
+      }
+    },
+    {
+      "name": "duplicate attachments for one principal merge as a union",
+      "principals": ["role:reader"],
+      "action": "post:view",
+      "expect": {
+        "decision": "deny",
+        "basis": "explicit_deny",
+        "valid_determinants": [
+          { "principal": "role:reader", "policy": "blocker", "statement": 0, "effect": "deny" }
+        ]
+      }
+    },
+    {
+      "name": "deny from one principal overrides allow from another",
+      "principals": ["role:viewer", "role:conflicted"],
+      "action": "post:view",
+      "expect": {
+        "decision": "deny",
+        "basis": "explicit_deny",
+        "valid_determinants": [
+          { "principal": "role:conflicted", "policy": "conflicted", "statement": 1, "effect": "deny" }
+        ]
+      }
+    },
+    {
+      "name": "multiple allowing principals (any determinant subset is valid)",
+      "principals": ["role:viewer", "role:second"],
+      "action": "post:view",
+      "expect": {
+        "decision": "permit",
+        "basis": "explicit_allow",
+        "valid_determinants": [
+          { "principal": "role:viewer", "policy": "reader", "statement": 0, "effect": "allow" },
+          { "principal": "role:second", "policy": "reader", "statement": 0, "effect": "allow" }
+        ]
+      }
+    }
+  ]
+}

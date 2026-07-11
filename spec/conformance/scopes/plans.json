@@ -1,0 +1,74 @@
+{
+  "name": "scope-plans",
+  "document": {
+    "version": 1,
+    "policies": [
+      { "name": "tenant-view", "statements": [
+        { "effect": "allow", "actions": ["post:view"] }
+      ] },
+      { "name": "owner-edit", "statements": [
+        { "effect": "allow", "actions": ["post:update", "post:delete"] }
+      ] },
+      { "name": "admin", "statements": [
+        { "effect": "allow", "actions": ["*"] }
+      ] },
+      { "name": "suspended", "statements": [
+        { "effect": "deny", "actions": ["*"] }
+      ] },
+      { "name": "banned-view", "statements": [
+        { "effect": "deny", "actions": ["post:view"] }
+      ] }
+    ],
+    "attachments": [
+      { "principal": "rel:tenant_member", "policies": ["tenant-view"] },
+      { "principal": "rel:owner", "policies": ["owner-edit"] },
+      { "principal": "role:admin", "policies": ["admin"] },
+      { "principal": "flag:suspended", "policies": ["suspended"] },
+      { "principal": "rel:banned", "policies": ["banned-view"] }
+    ]
+  },
+  "cases": [
+    {
+      "name": "member view is a union of allowing relations minus denying ones",
+      "action": "post:view",
+      "static_principals": ["user:1", "role:member"],
+      "relations": ["tenant_member", "owner", "banned"],
+      "expect": { "kind": "union", "include_relations": ["tenant_member"], "exclude_relations": ["banned"] }
+    },
+    {
+      "name": "static allow yields all records minus denying relations",
+      "action": "post:view",
+      "static_principals": ["user:2", "role:admin"],
+      "relations": ["tenant_member", "owner", "banned"],
+      "expect": { "kind": "all", "exclude_relations": ["banned"] }
+    },
+    {
+      "name": "static deny yields the empty set",
+      "action": "post:view",
+      "static_principals": ["user:3", "flag:suspended"],
+      "relations": ["tenant_member", "owner", "banned"],
+      "expect": { "kind": "empty" }
+    },
+    {
+      "name": "static deny overrides static allow",
+      "action": "post:view",
+      "static_principals": ["role:admin", "flag:suspended"],
+      "relations": ["tenant_member", "owner", "banned"],
+      "expect": { "kind": "empty" }
+    },
+    {
+      "name": "update scope comes from the owner relation only",
+      "action": "post:update",
+      "static_principals": ["user:1", "role:member"],
+      "relations": ["tenant_member", "owner", "banned"],
+      "expect": { "kind": "union", "include_relations": ["owner"], "exclude_relations": [] }
+    },
+    {
+      "name": "no grants at all yields the empty set",
+      "action": "comment:create",
+      "static_principals": ["user:1", "role:member"],
+      "relations": ["tenant_member", "owner", "banned"],
+      "expect": { "kind": "empty" }
+    }
+  ]
+}

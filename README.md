@@ -47,7 +47,10 @@ attachments:
 - [x] 正規形の JSON Schema（[spec/schema/](spec/schema/policy-document.schema.json)）
 - [x] Rails / Ruby アダプタの API 設計（[docs/rails-usage.md](docs/rails-usage.md)）
 - [x] 動作するサンプルアプリ（[examples/sinatra/](examples/sinatra/)）
-- [ ] リファレンス実装（Ruby ランタイム + 適合性 fixture）
+- [x] 適合性テスト fixture（[spec/conformance/](spec/conformance/)）
+- [x] リファレンス実装: Ruby ランタイム（[packages/ruby/](packages/ruby/)）
+- [ ] Rails アダプタ gem（placet-rails: 宣言 DSL・ActiveRecord への scope 写像）
+- [ ] 実装入りバージョンのリリース（現在公開中の 0.0.1 はプレースホルダ）
 
 ## リポジトリ構成
 
