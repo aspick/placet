@@ -44,7 +44,7 @@ attachments:
 ## ステータス
 
 - [x] コンセプトと設計判断の整理（[docs/concept.md](docs/concept.md)）
-- [ ] 正規形の JSON Schema
+- [x] 正規形の JSON Schema（[spec/schema/](spec/schema/policy-document.schema.json)）
 - [ ] リファレンス実装（Ruby ランタイム + 適合性 fixture）
 
 ## リポジトリ構成

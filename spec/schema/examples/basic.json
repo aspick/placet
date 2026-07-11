@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "policies": [
+    {
+      "name": "base-member",
+      "statements": [
+        {
+          "effect": "allow",
+          "actions": ["post:view", "comment:view", "comment:create"]
+        }
+      ]
+    },
+    {
+      "name": "post-editor",
+      "statements": [
+        {
+          "effect": "allow",
+          "actions": ["post:create", "post:update", "post:delete"]
+        }
+      ]
+    },
+    {
+      "name": "post-owner",
+      "statements": [
+        {
+          "effect": "allow",
+          "actions": ["post:update", "post:delete"]
+        }
+      ]
+    },
+    {
+      "name": "readonly-auditor",
+      "statements": [
+        {
+          "effect": "allow",
+          "actions": ["*:view"]
+        },
+        {
+          "effect": "deny",
+          "actions": ["*:create", "*:update", "*:delete"]
+        }
+      ]
+    },
+    {
+      "name": "suspended",
+      "statements": [
+        {
+          "effect": "deny",
+          "actions": ["*"]
+        }
+      ]
+    }
+  ],
+  "attachments": [
+    { "principal": "role:member", "policies": ["base-member"] },
+    { "principal": "role:editor", "policies": ["post-editor"] },
+    { "principal": "role:auditor", "policies": ["readonly-auditor"] },
+    { "principal": "rel:owner", "policies": ["post-owner"] },
+    { "principal": "flag:suspended", "policies": ["suspended"] }
+  ]
+}

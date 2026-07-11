@@ -91,7 +91,7 @@ attachments:
     policies: [post-editor]
 ```
 
-principal のマッチングは**完全一致のみ**とし、`tenant:*` のようなパターンは認めない。「全テナントのメンバー」のような集約が必要な場合は、resolver が共通の principal（例: `tenant-member`）を導出して表現する。これは「動的な状態は principal 導出で吸収する」原則の適用であり、attachment のマッチングを自明に保つ。
+principal のマッチングは**完全一致のみ**とし、`tenant:*` のようなパターンは認めない。「全テナントのメンバー」のような集約が必要な場合は、resolver が共通の principal（例: `flag:tenant-member`）を導出して表現する。これは「動的な状態は principal 導出で吸収する」原則の適用であり、attachment のマッチングを自明に保つ。
 
 ### 3.6 Decision
 
