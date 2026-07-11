@@ -47,6 +47,15 @@ attachments:
 - [ ] 正規形の JSON Schema
 - [ ] リファレンス実装（Ruby ランタイム + 適合性 fixture）
 
+## リポジトリ構成
+
+3 層構造（[docs/concept.md](docs/concept.md) Section 9）をディレクトリに反映しています。
+
+- `docs/` — コンセプトと設計判断の記録
+- `spec/` — コア仕様（正規形の JSON Schema・適合性テスト fixture、言語非依存）
+- `packages/ruby/` — Ruby ランタイム（gem: [placet](https://rubygems.org/gems/placet)）
+- `packages/js/` — JavaScript / TypeScript ランタイム（npm: [placet](https://www.npmjs.com/package/placet)）
+
 ## 名前について
 
 placet はラテン語で「可とする」。大学や教会の採決で用いられる placet / non placet（可 / 否）に由来します。読みは「プラケット」です。
