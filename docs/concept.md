@@ -2,7 +2,7 @@
 
 - Status: Draft
 - 作成日: 2026-07-11
-- 仮称: aac（正式名称は未定）
+- 名称: placet（読み: プラケット）— ラテン語「可とする」。大学・教会の採決用語 placet / non placet（可 / 否）に由来し、principal たちの評決として決定を返す本ライブラリの性格を表す
 
 ## 1. 目的と背景
 
@@ -355,12 +355,12 @@ WHERE (posts.author_id = 42 OR posts.tenant_id = 'acme')
 アプリ側は関係ごとの部品だけを定義する。
 
 ```ruby
-Aac.relation :owner, resource: Post do
+Placet.relation :owner, resource: Post do
   check { |user, post| post.author_id == user.id }
   scope { |user| Post.where(author_id: user.id) }
 end
 
-Aac.relation :tenant_member, resource: Post do
+Placet.relation :tenant_member, resource: Post do
   check { |user, post| post.tenant_id == user.tenant_id }
   scope { |user| Post.where(tenant_id: user.tenant_id) }
 end
@@ -370,31 +370,31 @@ end
 
 ```ruby
 # 一覧: Policy から WHERE 句を自動合成した Relation が返る
-posts = Aac.scoped(current_user, "post:view")
+posts = Placet.scoped(current_user, "post:view")
 posts.order(created_at: :desc).page(params[:page])  # 通常の AR チェーンと合成できる
 
 # 個体操作: authorize
-Aac.authorize!(current_user, "post:update", post)
+Placet.authorize!(current_user, "post:update", post)
 ```
 
-`Aac.scoped` が返すのは素の `ActiveRecord::Relation` なので、ページネーション・ORDER・追加の絞り込み・`COUNT` がすべて正しく動く。scope の合成（8.4 の規則）はライブラリが行い、アプリは合成ロジックを書かない。Pundit の `policy_scope` と使用感は同じだが、Scope の中身を手書きするのではなく Policy 定義から自動導出される点が異なる。
+`Placet.scoped` が返すのは素の `ActiveRecord::Relation` なので、ページネーション・ORDER・追加の絞り込み・`COUNT` がすべて正しく動く。scope の合成（8.4 の規則）はライブラリが行い、アプリは合成ロジックを書かない。Pundit の `policy_scope` と使用感は同じだが、Scope の中身を手書きするのではなく Policy 定義から自動導出される点が異なる。
 
 個体取得には 2 つのスタイルがあり、使い分けに意味がある。
 
 ```ruby
 # a) scoped 経由 → 見えないものは RecordNotFound (404)。リソースの存在自体を隠せる
-post = Aac.scoped(current_user, "post:view").find(params[:id])
+post = Placet.scoped(current_user, "post:view").find(params[:id])
 
 # b) 取得してから authorize → 存在は分かった上で拒否 (403)
 post = Post.find(params[:id])
-Aac.authorize!(current_user, "post:update", post)
+Placet.authorize!(current_user, "post:update", post)
 ```
 
 閲覧系は a)（存在秘匿。プライベートリソースに 404 を返す GitHub と同じ理由）、すでに見えているリソースへの操作は b) が自然である。
 
 **「常に scoped」の担保**は、`default_scope` では行わない。`default_scope` はユーザーというリクエスト文脈を必要とするためグローバル状態に依存することになり、バックグラウンドジョブや rake タスクで壊れ、`unscoped` の穴も残る。代わりに、
 
-- 入口を明示的な API（`Aac.scoped`）に一本化し、
+- 入口を明示的な API（`Placet.scoped`）に一本化し、
 - **呼び忘れ検知フック**（Pundit の `verify_policy_scoped` 相当。`after_action` で「このアクションで `scoped` も `authorize` も呼ばれていなければ raise」。development / test では必ず有効化）
 
 という「明示的な入口 + 検知」の組み合わせで担保する。
