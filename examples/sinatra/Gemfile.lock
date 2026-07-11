@@ -1,7 +1,7 @@
 PATH
   remote: ../../packages/ruby
   specs:
-    placet (0.0.1)
+    placet (0.1.0)
 
 GEM
   remote: https://rubygems.org/
