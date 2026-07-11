@@ -93,6 +93,17 @@ class DefinitionTest < Minitest::Test
     assert_raises(Placet::Error) { Placet.decide(:user, "post:veiw") }
   end
 
+  def test_action_registry_rejects_unknown_actions_in_scope_plan
+    Placet.define do
+      actions "post", %w[view]
+      policy("reader", attach_to: "role:member") { allow "post:view" }
+    end
+
+    assert_raises(Placet::Error) do
+      Placet.engine.scope_plan(["role:member"], "post:veiw", relations: [])
+    end
+  end
+
   def test_relation_requires_check_and_scope_pair
     model = Class.new
     assert_raises(Placet::DefinitionError) do

@@ -27,13 +27,7 @@ module Placet
 
     # principals: Array<String> または Hash{principal => via 連鎖}
     def decide(principals, action)
-      unless action.is_a?(String) && action =~ CONCRETE_ACTION_RE
-        raise ArgumentError, "決定要求の action は具体的でなければならない: #{action.inspect}"
-      end
-      unless @definition.known_action?(action)
-        raise Error, "未知の action: #{action}（レジストリに未宣言）"
-      end
-
+      validate_action!(action)
       principals = principals.to_h { |p| [p, []] } unless principals.is_a?(Hash)
 
       matched = []
@@ -61,6 +55,7 @@ module Placet
     # static_principals: 静的 principal（rel: を含まない導出結果）
     # relations: 対象モデルに定義された relation 名のリスト
     def scope_plan(static_principals, action, relations:)
+      validate_action!(action)
       allow_ps, deny_ps = grants(action)
       static = static_principals.to_a
 
@@ -83,6 +78,18 @@ module Placet
     end
 
     private
+
+    # 決定要求・scope 合成の action は具体的（ワイルドカード不可）かつ
+    # レジストリ宣言済み（使用時）でなければならない。typo は静かな全拒否 /
+    # 空 scope になるため、ここで即エラーにする
+    def validate_action!(action)
+      unless action.is_a?(String) && action =~ CONCRETE_ACTION_RE
+        raise ArgumentError, "決定要求の action は具体的でなければならない: #{action.inspect}"
+      end
+      unless @definition.known_action?(action)
+        raise Error, "未知の action: #{action}（レジストリに未宣言）"
+      end
+    end
 
     # action → allow / deny を与える principal 集合の逆引き（起動時コンパイル相当）
     def grants(action)

@@ -40,6 +40,16 @@ module Placet
             raise Placet::DefinitionError, "via: :scope の宣言は単一 action のみ: #{actions.inspect}"
           end
 
+          # typo は「静かな全拒否 / 空 scope」になるため宣言時に検査する
+          actions.each do |action|
+            unless action =~ Placet::CONCRETE_ACTION_RE
+              raise Placet::DefinitionError, "placet_permit の action は具体的でなければならない: #{action.inspect}"
+            end
+            unless Placet.definition.known_action?(action)
+              raise Placet::DefinitionError, "未知の action: #{action}（レジストリに未宣言）"
+            end
+          end
+
           declaration = { actions: actions, via: via, resource: resource, model: model }
           merged = Array(only).map(&:to_s).to_h { |name| [name, (placet_declarations[name] || []) + [declaration]] }
           self.placet_declarations = placet_declarations.merge(merged)
@@ -95,6 +105,19 @@ module Placet
 
       # 表示制御用。enforcement にはカウントされない
       def placet_permit?(actions, resource = nil) = Placet.permit?(placet_user, actions, resource)
+
+      # 二段構えの再チェック（docs/rails-usage.md Section 6）。scope で絞った結果
+      # （通常は 1 ページ分）へ個体判定を再適用し、check / scope の乖離があっても
+      # 見えてはいけないレコードを返さない。action 省略時は scope 宣言から引き継ぐ
+      def placet_recheck(records, action: nil)
+        action ||= begin
+          declaration = (placet_declarations[action_name] || []).find { |d| d[:via] == :scope }
+          raise Placet::Error, "#{self.class.name}##{action_name} に via: :scope の宣言がない" unless declaration
+
+          declaration[:actions].first
+        end
+        Placet.recheck(placet_user, action, records)
+      end
 
       private
 

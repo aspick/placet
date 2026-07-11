@@ -81,4 +81,19 @@ class ControllerIntegrationTest < ActionDispatch::IntegrationTest
     error = assert_raises(Placet::Rails::VerificationError) { get "/leaky", **as("bob") }
     assert_match(/LeakyController#show/, error.message)
   end
+
+  # --- 宣言時の action レジストリ検証 ---
+
+  def test_placet_permit_rejects_unknown_action_at_declaration
+    error = assert_raises(Placet::DefinitionError) do
+      Class.new(ApplicationController) { placet_permit "post:veiw", only: :show }
+    end
+    assert_match(/未知の action/, error.message)
+  end
+
+  def test_placet_permit_rejects_wildcard_action
+    assert_raises(Placet::DefinitionError) do
+      Class.new(ApplicationController) { placet_permit "post:*", only: :show }
+    end
+  end
 end

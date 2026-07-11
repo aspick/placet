@@ -33,17 +33,23 @@ module Placet
       @engine = nil
     end
 
-    # principal 集合の導出。戻り値は { principal => 由来の連鎖 (Array) }
-    def principals_for(user, resource = nil)
-      base = Array(@resolver&.call(user))
+    # 与えられた principal 集合に derive の 1 段展開を適用する。
+    # 戻り値は { principal => 由来の連鎖 (Array) }
+    def expand_principals(base)
       out = {}
       base.each { |p| out[p] = [] }
-      base.each do |p|                                       # derive の展開は 1 段のみ
+      base.each do |p|
         type, id = p.split(":", 2)
         derive_hooks(type).each do |hook|
           Array(hook.call(id)).each { |derived| out[derived] ||= [p] }
         end
       end
+      out
+    end
+
+    # principal 集合の導出。戻り値は { principal => 由来の連鎖 (Array) }
+    def principals_for(user, resource = nil)
+      out = expand_principals(Array(@resolver&.call(user)))
       if resource
         relations_for(resource.class).each do |rel|
           out["rel:#{rel.name}"] ||= [] if rel.check.call(user, resource)
@@ -87,6 +93,25 @@ module Placet
     # PEP ヘルパーの呼び忘れ検知（docs/rails-usage.md 4.4）が参照する
     def enforcements = Thread.current[:placet_enforcements] || 0
 
+    # scope 合成の結果（通常は 1 ページ分）へ個体判定を再適用する二段構え。
+    # check / scope に乖離バグがあっても「見えてはいけないものが見える」方向には
+    # 倒れない（concept.md 11.5）。乖離レコードは on_recheck_divergence に通知して除外する
+    def recheck(user, action, records)
+      records.select do |record|
+        next true if permit?(user, action, record)
+
+        if (handler = @on_recheck_divergence)
+          handler.call(user, action, record)
+        else
+          warn "placet: scope と check の乖離を検出: action=#{action} record=#{record.inspect}"
+        end
+        false
+      end
+    end
+
+    # 乖離検出時のハンドラ（user, action, record を受け取る）。既定は警告出力
+    attr_accessor :on_recheck_divergence
+
     def export = definition.to_canonical
 
     # テスト・再読み込み用: すべての定義と登録を破棄する
@@ -96,12 +121,15 @@ module Placet
       @resolver = nil
       @derives = nil
       @relations = nil
+      @on_recheck_divergence = nil
     end
+
+    # モデルに登録された relation の一覧（テストヘルパー・アダプタが参照する）
+    def relations_for(klass) = @relations ? @relations.fetch(klass, []) : []
 
     private
 
     def derive_hooks(type) = @derives ? @derives.fetch(type, []) : []
-    def relations_for(klass) = @relations ? @relations.fetch(klass, []) : []
     def count_enforcement! = Thread.current[:placet_enforcements] = enforcements + 1
 
     def materialize_scope(plan, rels, user, model)

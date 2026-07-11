@@ -76,4 +76,36 @@ class RuntimeTest < Minitest::Test
     assert_equal "post:update", error.action
     assert_equal :implicit_deny, error.decision.basis
   end
+
+  def test_recheck_filters_divergent_records_and_notifies
+    divergent = []
+    Placet.on_recheck_divergence = ->(_user, _action, record) { divergent << record.id }
+
+    # scope が「過剰に」全件を返してしまった、という乖離を想定
+    rechecked = Placet.recheck(ALICE, "post:view", TestPost.all)
+
+    assert_equal [1, 2], rechecked.map(&:id)   # 見えてはいけない p3 は除外される
+    assert_equal [3], divergent                # 乖離はハンドラに通知される
+  end
+
+  def test_verify_relation_consistency_passes_for_consistent_relation
+    extend Placet::TestHelpers
+    assert verify_relation_consistency(:owner, resource: TestPost,
+                                               users: [ALICE, ADMIN], records: TestPost.all)
+  end
+
+  def test_verify_relation_consistency_detects_divergence
+    extend Placet::TestHelpers
+    buggy_model = Class.new
+    Placet.relation :buggy, resource: buggy_model do
+      check { |_user, _record| false }          # 個体判定では常に不可なのに
+      scope { |_user| TestPost.all }            # 一覧には全件出る、という乖離
+    end
+
+    error = assert_raises(Placet::Error) do
+      verify_relation_consistency(:buggy, resource: buggy_model,
+                                          users: [ALICE], records: TestPost.all)
+    end
+    assert_match(/乖離/, error.message)
+  end
 end

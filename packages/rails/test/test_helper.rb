@@ -36,13 +36,19 @@ TEST_USERS = {
 
 Placet.define do
   actions "post", %w[view create update delete]
+  actions "report", %w[export]
 
   policy("tenant-view", attach_to: "rel:tenant_member") { allow "post:view" }
   policy("member-base", attach_to: "role:member") { allow "post:create" }
   policy("post-owner", attach_to: "rel:owner") { allow "post:update", "post:delete" }
   policy("tenant-editor", attach_to: "rel:tenant_editor") { allow "post:update", "post:delete" }
+  policy("premium-report", attach_to: "feature:analytics") { allow "report:export" }
   policy("admin", attach_to: "role:admin") { allow "*" }
   policy("suspended", attach_to: "flag:suspended") { deny "*" }
+end
+
+Placet.derive "tenant:*" do |tenant|
+  tenant == "acme" ? ["feature:analytics"] : []
 end
 
 Placet.resolver do |user|
@@ -97,7 +103,7 @@ class PostsController < ApplicationController
   before_action :set_post, only: %i[update destroy]
   placet_resource Post
 
-  def index = render(json: placet_scope.order(:id).pluck(:id))
+  def index = render(json: placet_recheck(placet_scope.order(:id)).map(&:id))
   def show = render(json: { id: placet_scope.find(params[:id]).id })
 
   def create

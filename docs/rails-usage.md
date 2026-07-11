@@ -1,6 +1,6 @@
 # placet Rails アダプタ 設計ドキュメント（利用イメージ）
 
-- Status: Draft（Section 2〜4 の主要部は [packages/rails](../packages/rails) として実装済み。運用ツールの placet:explain、strict モード、action レジストリの呼び出し時検証は未実装）
+- Status: Draft（[packages/rails](../packages/rails) として実装済み）
 - 作成日: 2026-07-11
 - 前提: [concept.md](concept.md)（コンセプトと言語非依存仕様）
 
@@ -294,12 +294,19 @@ end
 
 ```ruby
 # check / scope の乖離（最大のリスク。concept.md 8.4）を property test で検証
+# （require "placet/test_helpers" して include する）
 it "owner relation の check と scope が一致する" do
-  verify_relation_consistency(:owner, users: User.all, records: Post.all)
+  verify_relation_consistency(:owner, resource: Post, users: User.all, records: Post.all)
 end
 ```
 
-strict モード（scoped の結果に描画直前の `check` 再適用。concept.md 11.5）はオプションとして提供し、既定値は未決。
+二段構えの再チェック（scoped の結果に描画直前の `check` を再適用。concept.md 11.5）は、モード切替ではなく**明示的な API** として提供する。乖離を検出したレコードは除外され（見えてはいけないものが見える方向には倒れない）、`Placet.on_recheck_divergence`（Rails では既定で `Rails.logger.warn`）に通知される。
+
+```ruby
+def index
+  render json: placet_recheck(placet_scope.page(params[:page]))
+end
+```
 
 ジョブ・rake タスクでも同じ API がそのまま動く。`current_user` のようなグローバル状態に依存せず、常に user を明示的に渡す設計のため。
 
@@ -324,16 +331,17 @@ POST   /posts/:id/publish  post:publish (403)
 # コンパイル済み正規形の出力（diff・レビュー・他言語ランタイムへの入力）
 $ rails placet:export
 
-# 分類 principal の実効権限（derive を通してデータも参照）
-$ rails placet:explain plan:premium
+# 分類 principal の実効権限（derive の 1 段展開を適用）
+$ rails "placet:explain[tenant:acme]"
 plan:premium
 └─ feature:analytics      (plan_features より)
    └─ policy: analytics
       allow report:view
       allow report:export
 
-# 特定の主体について「なぜできる / できないか」（由来の連鎖つき）
-$ rails placet:explain user:42 report:export
+# principal 集合 × action の決定根拠（由来の連鎖つき）。resolver はアプリの
+# user オブジェクトを要するため、explain には principal 集合を直接渡す
+$ rails "placet:explain[user:42 role:member tenant:acme, report:export]"
 Permit (explicit_allow)
 └─ determinant: policy "analytics" statement 0
    via feature:analytics ← plan:premium ← tenant:acme
