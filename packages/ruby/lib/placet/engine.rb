@@ -18,34 +18,34 @@ module Placet
   # ORM アダプタはこの plan を WHERE 句へ写像する
   ScopePlan = Struct.new(:kind, :include_relations, :exclude_relations, keyword_init: true)
 
-  # コア評価エンジン（PDP）。純粋関数として動作し、適合性テストの対象となる
+  # コア評価エンジン（PDP）。純粋関数として動作し、適合性テストの対象となる。
+  # 入力は principal 文字列の配列のみで、derive の由来（via）などランタイム層の
+  # 拡張は関知しない
   class Engine
-    def initialize(definition)
+    def initialize(definition, registry: nil)
       @definition = definition
+      @registry = registry
       @grant_cache = {}
+      @match_cache = {}
+      @valid_actions = Set.new
     end
 
-    # principals: Array<String> または Hash{principal => via 連鎖}
     def decide(principals, action)
       validate_action!(action)
-      principals = principals.to_h { |p| [p, []] } unless principals.is_a?(Hash)
+      matches = matches_for(action)
 
       matched = []
-      principals.each do |principal, via|
+      principals.each do |principal|
         @definition.attachments.fetch(principal, []).each do |policy_name|
-          @definition.policies[policy_name].each_with_index do |st, index|
-            next unless st.actions.any? { |pattern| ActionMatch.match?(pattern, action) }
-
-            matched << Determinant.new(principal: principal, policy: policy_name, statement: index,
-                                       effect: st.effect, via: via.nil? || via.empty? ? nil : via)
+          matches.fetch(policy_name, []).each do |index, effect|
+            matched << Determinant.new(principal: principal, policy: policy_name,
+                                       statement: index, effect: effect)
           end
         end
       end
 
-      denies = matched.select { |m| m.effect == "deny" }
+      denies, allows = matched.partition { |m| m.effect == "deny" }
       return Decision.new(decision: :deny, basis: :explicit_deny, determinants: denies) if denies.any?
-
-      allows = matched.select { |m| m.effect == "allow" }
       return Decision.new(decision: :permit, basis: :explicit_allow, determinants: allows) if allows.any?
 
       Decision.new(decision: :deny, basis: :implicit_deny, determinants: [])
@@ -77,18 +77,39 @@ module Placet
       end
     end
 
+    # action 検証の一元的な入口。決定要求・scope 合成の action は具体的
+    # （ワイルドカード不可）かつレジストリ宣言済み（使用時）でなければならない。
+    # typo は静かな全拒否 / 空 scope になるため即エラーにする。
+    # 宣言時 fail-fast には error_class に DefinitionError を渡して使う
+    def validate_action!(action, error_class: Error)
+      return if @valid_actions.include?(action)
+
+      unless action.is_a?(String) && action =~ CONCRETE_ACTION_RE
+        raise error_class, "action は具体的でなければならない: #{action.inspect}"
+      end
+      unless @registry.nil? || @registry.known_action?(action)
+        raise error_class, "未知の action: #{action}（レジストリに未宣言）"
+      end
+
+      @valid_actions << action
+    end
+
     private
 
-    # 決定要求・scope 合成の action は具体的（ワイルドカード不可）かつ
-    # レジストリ宣言済み（使用時）でなければならない。typo は静かな全拒否 /
-    # 空 scope になるため、ここで即エラーにする
-    def validate_action!(action)
-      unless action.is_a?(String) && action =~ CONCRETE_ACTION_RE
-        raise ArgumentError, "決定要求の action は具体的でなければならない: #{action.inspect}"
+    # action ごとの「マッチ済み statement 索引」（policy 名 => [[index, effect]]）。
+    # 定義は Engine 生成後に不変なのでキャッシュできる。decide の毎回の
+    # 全 statement 走査と action 文字列の split 繰り返しを避ける
+    def matches_for(action)
+      @match_cache[action] ||= @definition.policies.each_with_object({}) do |(name, statements), out|
+        hits = statements.each_with_index.filter_map do |st, index|
+          [index, st.effect] if statement_matches?(st, action)
+        end
+        out[name] = hits unless hits.empty?
       end
-      unless @definition.known_action?(action)
-        raise Error, "未知の action: #{action}（レジストリに未宣言）"
-      end
+    end
+
+    def statement_matches?(statement, action)
+      statement.actions.any? { |pattern| ActionMatch.match?(pattern, action) }
     end
 
     # action → allow / deny を与える principal 集合の逆引き（起動時コンパイル相当）
@@ -99,9 +120,7 @@ module Placet
         @definition.attachments.each do |principal, names|
           names.each do |name|
             @definition.policies[name].each do |st|
-              next unless st.actions.any? { |pattern| ActionMatch.match?(pattern, action) }
-
-              (st.effect == "deny" ? deny : allow) << principal
+              (st.effect == "deny" ? deny : allow) << principal if statement_matches?(st, action)
             end
           end
         end

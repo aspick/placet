@@ -26,6 +26,7 @@ module Placet
         class_attribute :placet_declarations, default: {}, instance_writer: false
         class_attribute :placet_public_actions, default: [], instance_writer: false
         class_attribute :placet_verify_enabled, default: false, instance_writer: false
+        class_attribute :placet_enforcer_installed, default: false, instance_writer: false
         helper_method :placet_permit?, :placet_user if respond_to?(:helper_method)
       end
 
@@ -40,26 +41,20 @@ module Placet
             raise Placet::DefinitionError, "via: :scope の宣言は単一 action のみ: #{actions.inspect}"
           end
 
-          # typo は「静かな全拒否 / 空 scope」になるため宣言時に検査する
-          actions.each do |action|
-            unless action =~ Placet::CONCRETE_ACTION_RE
-              raise Placet::DefinitionError, "placet_permit の action は具体的でなければならない: #{action.inspect}"
-            end
-            unless Placet.definition.known_action?(action)
-              raise Placet::DefinitionError, "未知の action: #{action}（レジストリに未宣言）"
-            end
-          end
+          # typo は「静かな全拒否 / 空 scope」になるため宣言時に検査する（検証規則はコアに一元化）
+          actions.each { |action| Placet.validate_action!(action, error_class: Placet::DefinitionError) }
 
           declaration = { actions: actions, via: via, resource: resource, model: model }
+          if via == :scope && model.nil?
+            # 規約推論（resource セグメント → モデル名）は宣言時に解決しておく。
+            # リロードと相性を保つため、クラス参照ではなく名前文字列を保持する
+            declaration[:model_name] = actions.first.split(":", 2).first.camelize
+          end
+
           merged = Array(only).map(&:to_s).to_h { |name| [name, (placet_declarations[name] || []) + [declaration]] }
           self.placet_declarations = placet_declarations.merge(merged)
 
-          return unless via == :check
-
-          before_action(only: only) do
-            target = resource && instance_exec(&resource)
-            Placet.authorize!(placet_user, actions, target)
-          end
+          install_placet_enforcer if via == :check
         end
 
         # RESTful CRUD の規約展開（docs/rails-usage.md 4.1）。
@@ -88,6 +83,19 @@ module Placet
           prepend_before_action { @_placet_enforcements_before = Placet.enforcements }
           after_action :placet_verify_enforcement!
         end
+
+        private
+
+        # check モードの enforcement は、宣言ハッシュを唯一の真実として 1 本の
+        # before_action で行う（endpoints タスク・verify と同じデータを見る）。
+        # 最初の check 宣言の位置で登録されるため、リソースをロードする
+        # before_action はそれより前に宣言しておくこと
+        def install_placet_enforcer
+          return if placet_enforcer_installed
+
+          self.placet_enforcer_installed = true
+          before_action :placet_enforce!
+        end
       end
 
       # アプリ側で上書き可能。既定は current_user
@@ -95,12 +103,9 @@ module Placet
 
       # via: :scope の宣言から合成済みコレクション（AR なら Relation）を返す
       def placet_scope(model = nil)
-        declaration = (placet_declarations[action_name] || []).find { |d| d[:via] == :scope }
-        raise Placet::Error, "#{self.class.name}##{action_name} に via: :scope の宣言がない" unless declaration
-
-        action = declaration[:actions].first
-        target = model || declaration[:model] || action.split(":", 2).first.camelize.constantize
-        Placet.scoped(placet_user, action, model: target)
+        declaration = placet_scope_declaration!
+        target = model || declaration[:model] || declaration[:model_name].constantize
+        Placet.scoped(placet_user, declaration[:actions].first, model: target)
       end
 
       # 表示制御用。enforcement にはカウントされない
@@ -110,16 +115,25 @@ module Placet
       # （通常は 1 ページ分）へ個体判定を再適用し、check / scope の乖離があっても
       # 見えてはいけないレコードを返さない。action 省略時は scope 宣言から引き継ぐ
       def placet_recheck(records, action: nil)
-        action ||= begin
-          declaration = (placet_declarations[action_name] || []).find { |d| d[:via] == :scope }
-          raise Placet::Error, "#{self.class.name}##{action_name} に via: :scope の宣言がない" unless declaration
-
-          declaration[:actions].first
-        end
+        action ||= placet_scope_declaration![:actions].first
         Placet.recheck(placet_user, action, records)
       end
 
       private
+
+      def placet_scope_declaration!
+        (placet_declarations[action_name] || []).find { |d| d[:via] == :scope } ||
+          raise(Placet::Error, "#{self.class.name}##{action_name} に via: :scope の宣言がない")
+      end
+
+      def placet_enforce!
+        (placet_declarations[action_name] || []).each do |declaration|
+          next unless declaration[:via] == :check
+
+          target = declaration[:resource] && instance_exec(&declaration[:resource])
+          Placet.authorize!(placet_user, declaration[:actions], target)
+        end
+      end
 
       def placet_verify_enforcement!
         return if placet_public_actions.include?(action_name)

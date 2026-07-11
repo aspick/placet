@@ -5,10 +5,7 @@ require_relative "test_helper"
 # ScopePlan → ActiveRecord::Relation の写像のユニットテスト
 class ActiveRecordScopeTest < Minitest::Test
   def setup
-    Post.delete_all
-    Post.create!(id: 1, title: "a", author_id: 1, tenant: "acme")
-    Post.create!(id: 2, title: "b", author_id: 2, tenant: "acme")
-    Post.create!(id: 3, title: "c", author_id: 3, tenant: "umbrella")
+    create_fixture_posts!
   end
 
   def alice = TEST_USERS["alice"]

@@ -141,3 +141,13 @@ Rails.application.routes.draw do
   get "/health", to: "health#show"
   get "/leaky", to: "leaky#show"
 end
+
+# 両テストファイルで共有する Post fixture（作成した post の配列を返す）
+def create_fixture_posts!
+  Post.delete_all
+  [
+    Post.create!(id: 1, title: "acme roadmap", author_id: 1, tenant: "acme"),
+    Post.create!(id: 2, title: "bob's memo", author_id: 2, tenant: "acme"),
+    Post.create!(id: 3, title: "umbrella note", author_id: 3, tenant: "umbrella")
+  ]
+end

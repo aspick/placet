@@ -19,9 +19,9 @@ namespace :placet do
     principals = subject.split(/\s+/)
     if action.empty?
       abort "principal の説明は 1 つずつ指定してください" if principals.size > 1
-      puts Placet::Rails::Explain.principal_report(principals.first)
+      puts Placet::Explain.principal_report(principals.first)
     else
-      puts Placet::Rails::Explain.decision_report(principals, action)
+      puts Placet::Explain.decision_report(principals, action)
     end
   end
 

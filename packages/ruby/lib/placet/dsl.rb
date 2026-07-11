@@ -11,9 +11,12 @@ module Placet
   end
 
   class DefinitionBuilder
-    def initialize(definition) = @definition = definition
+    def initialize(definition, registry)
+      @definition = definition
+      @registry = registry
+    end
 
-    def actions(resource, operations) = @definition.add_actions(resource, operations)
+    def actions(resource, operations) = @registry.add(resource, operations)
 
     def policy(name, attach_to: nil, &block)
       builder = PolicyBuilder.new
@@ -26,7 +29,7 @@ module Placet
   end
 
   # relation は check（個体判定）と scope（一覧用の逆写像）を必ずペアで宣言する
-  Relation = Struct.new(:name, :resource_class, :check, :scope, keyword_init: true)
+  Relation = Struct.new(:name, :check, :scope, keyword_init: true)
 
   class RelationBuilder
     attr_reader :check_block, :scope_block

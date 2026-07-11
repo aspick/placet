@@ -5,11 +5,12 @@ module Placet
   # 定義（静的）と principal 導出（動的）をつなぎ、Engine に決定を委譲する
   class << self
     def definition = (@definition ||= Definition.new)
-    def engine = (@engine ||= Engine.new(definition))
+    def registry = (@registry ||= ActionRegistry.new)
+    def engine = (@engine ||= Engine.new(definition, registry: registry))
 
     def define(&block)
-      DefinitionBuilder.new(definition).instance_eval(&block)
-      definition.validate!
+      DefinitionBuilder.new(definition, registry).instance_eval(&block)
+      definition.validate!(registry)
       @engine = nil
     end
 
@@ -17,7 +18,7 @@ module Placet
 
     def derive(type_pattern, &block)
       type = type_pattern.delete_suffix(":*").delete_suffix(":")
-      (@derives ||= Hash.new { |h, k| h[k] = [] })[type] << block
+      ((@derives ||= {})[type] ||= []) << block
     end
 
     def relation(name, resource:, &block)
@@ -27,10 +28,8 @@ module Placet
         raise DefinitionError, "relation は check と scope をペアで宣言する: #{name}"
       end
 
-      (@relations ||= Hash.new { |h, k| h[k] = [] })[resource] <<
-        Relation.new(name: name.to_s, resource_class: resource,
-                     check: builder.check_block, scope: builder.scope_block)
-      @engine = nil
+      ((@relations ||= {})[resource] ||= []) <<
+        Relation.new(name: name.to_s, check: builder.check_block, scope: builder.scope_block)
     end
 
     # 与えられた principal 集合に derive の 1 段展開を適用する。
@@ -49,44 +48,65 @@ module Placet
 
     # principal 集合の導出。戻り値は { principal => 由来の連鎖 (Array) }
     def principals_for(user, resource = nil)
-      out = expand_principals(Array(@resolver&.call(user)))
-      if resource
-        relations_for(resource.class).each do |rel|
-          out["rel:#{rel.name}"] ||= [] if rel.check.call(user, resource)
-        end
-      end
-      out
+      with_relation_principals(expand_principals(Array(@resolver&.call(user))), user, resource)
     end
 
     # 複数 action は AND（fail-fast）。docs/rails-usage.md 4.2
     def decide(user, actions, resource = nil)
       last = nil
-      Array(actions).each do |action|
-        last = engine.decide(principals_for(user, resource), action)
-        return last unless last.permit?
+      decide_each(user, actions, resource) do |_action, decision|
+        last = decision
+        return decision unless decision.permit?
       end
       last
     end
 
     def authorize!(user, actions, resource = nil)
       count_enforcement!
-      Array(actions).each do |action|
-        d = engine.decide(principals_for(user, resource), action)
-        raise Denied.new(action, d) unless d.permit?
+      decide_each(user, actions, resource) do |action, decision|
+        raise Denied.new(action, decision) unless decision.permit?
       end
       true
     end
 
     def permit?(user, actions, resource = nil) = decide(user, actions, resource).permit?
 
-    # 一覧の scope 合成。Engine の plan を materialize_scope でコレクションへ写像する。
-    # 既定はインメモリ配列で、ActiveRecord 等の ORM への写像はアダプタ gem が
-    # materialize_scope を prepend で差し替えて提供する
+    # 由来つきの principal 集合（Hash）で判定し、determinants に由来（via）を付与する。
+    # Engine は仕様どおり principal の配列のみを受けるため、via の装飾はこの層で行う
+    def decide_with_provenance(principals, action)
+      decision = engine.decide(principals.keys, action)
+      decision.determinants.each do |determinant|
+        via = principals[determinant.principal]
+        determinant.via = via unless via.nil? || via.empty?
+      end
+      decision
+    end
+
+    # action 検証の公開入口（Engine に委譲）。アダプタの宣言時 fail-fast にも使う
+    def validate_action!(action, error_class: Error)
+      engine.validate_action!(action, error_class: error_class)
+    end
+
+    # 一覧の scope 合成。Engine の plan を、登録された materializer（ORM アダプタ）
+    # またはインメモリの既定実装でコレクションへ写像する
     def scoped(user, action, model:)
       count_enforcement!
       rels = relations_for(model)
       plan = engine.scope_plan(principals_for(user).keys, action, relations: rels.map(&:name))
-      materialize_scope(plan, rels, user, model)
+      materializer_for(model).call(plan, rels, user, model)
+    end
+
+    # ORM アダプタが ScopePlan の実体化を登録する。matcher が true を返した
+    # model に materializer が適用される（後着優先。どれにもマッチしなければ
+    # インメモリの既定実装）。定義状態とは独立した登録なので reset! では消えない
+    def register_scope_materializer(matcher, materializer)
+      (@scope_materializers ||= []).unshift([matcher, materializer])
+    end
+
+    # relation 名の集合を scope 呼び出し結果へ写像する共通ヘルパー
+    # （インメモリ実装と ORM アダプタで共有）
+    def relation_scopes(relations, names, user)
+      relations.select { |r| names.include?(r.name) }.map { |r| r.scope.call(user) }
     end
 
     # このスレッドで enforcement（authorize! / scoped）が行われた回数。
@@ -95,10 +115,13 @@ module Placet
 
     # scope 合成の結果（通常は 1 ページ分）へ個体判定を再適用する二段構え。
     # check / scope に乖離バグがあっても「見えてはいけないものが見える」方向には
-    # 倒れない（concept.md 11.5）。乖離レコードは on_recheck_divergence に通知して除外する
+    # 倒れない（concept.md 11.5）。乖離レコードは on_recheck_divergence に通知して除外する。
+    # 静的 principal の導出（resolver + derive）はレコードに依存しないため 1 回だけ行う
     def recheck(user, action, records)
+      base = expand_principals(Array(@resolver&.call(user)))
       records.select do |record|
-        next true if permit?(user, action, record)
+        principals = with_relation_principals(base, user, record)
+        next true if engine.decide(principals.keys, action).permit?
 
         if (handler = @on_recheck_divergence)
           handler.call(user, action, record)
@@ -114,9 +137,10 @@ module Placet
 
     def export = definition.to_canonical
 
-    # テスト・再読み込み用: すべての定義と登録を破棄する
+    # テスト・再読み込み用: 定義と登録を破棄する（materializer は定義状態ではないため対象外）
     def reset!
       @definition = nil
+      @registry = nil
       @engine = nil
       @resolver = nil
       @derives = nil
@@ -132,15 +156,41 @@ module Placet
     def derive_hooks(type) = @derives ? @derives.fetch(type, []) : []
     def count_enforcement! = Thread.current[:placet_enforcements] = enforcements + 1
 
-    def materialize_scope(plan, rels, user, model)
-      excluded = rels.select { |r| plan.exclude_relations.include?(r.name) }
-                     .flat_map { |r| r.scope.call(user) }
+    # principals_for / decide / authorize! で共有する評価ループ。
+    # principal 導出は action に依存しないため、複数 action の AND でも 1 回で済ませる
+    def decide_each(user, actions, resource)
+      principals = principals_for(user, resource)
+      Array(actions).each do |action|
+        yield action, decide_with_provenance(principals, action)
+      end
+    end
+
+    # 由来つき principal 集合（base）に、resource との関係の面を追加する
+    def with_relation_principals(base, user, resource)
+      return base unless resource
+
+      out = base.dup
+      relations_for(resource.class).each do |rel|
+        out["rel:#{rel.name}"] ||= [] if rel.check.call(user, resource)
+      end
+      out
+    end
+
+    def materializer_for(model)
+      (@scope_materializers || []).each do |matcher, materializer|
+        return materializer if matcher.call(model)
+      end
+      method(:materialize_in_memory)
+    end
+
+    # 既定の実体化: インメモリコレクション（Array）に対する集合演算
+    def materialize_in_memory(plan, rels, user, model)
+      excluded = relation_scopes(rels, plan.exclude_relations, user).flatten(1)
       case plan.kind
       when "empty" then []
       when "all"   then model.all.to_a - excluded
       else
-        rels.select { |r| plan.include_relations.include?(r.name) }
-            .flat_map { |r| r.scope.call(user) }.uniq - excluded
+        relation_scopes(rels, plan.include_relations, user).flatten(1).uniq - excluded
       end
     end
   end

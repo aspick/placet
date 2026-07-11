@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "set"
-
 module Placet
   ACTION_PATTERN_RE  = /\A(\*|(\*|[a-z][a-z0-9_]*):(\*|[a-z][a-z0-9_]*))\z/
   CONCRETE_ACTION_RE = /\A[a-z][a-z0-9_]*:[a-z][a-z0-9_]*\z/
@@ -15,20 +13,19 @@ module Placet
     attr_reader :policies, :attachments
 
     def initialize
-      @policies = {}                                # name => [Statement]
-      @attachments = Hash.new { |h, k| h[k] = [] }  # principal => [policy names]
-      @registry = nil                               # nil = action レジストリ未使用
+      @policies = {}     # name => [Statement]
+      @attachments = {}  # principal => [policy names]
     end
 
-    # 正規形（JSON 互換 Hash）からの読み込み
+    # 正規形（JSON 互換 Hash・文字列キー）からの読み込み
     def self.from_canonical(doc)
       raise DefinitionError, "ドキュメントが Hash ではない" unless doc.is_a?(Hash)
 
-      version = doc["version"] || doc[:version]
+      version = doc["version"]
       raise DefinitionError, "未対応の version: #{version.inspect}" unless version == 1
 
       definition = new
-      Array(doc["policies"] || doc[:policies]).each do |policy|
+      Array(doc["policies"]).each do |policy|
         statements = Array(policy["statements"]).map do |st|
           effect = st["effect"]
           raise DefinitionError, "effect が不正: #{effect.inspect}" unless %w[allow deny].include?(effect)
@@ -37,16 +34,11 @@ module Placet
         end
         definition.add_policy(policy["name"], statements)
       end
-      Array(doc["attachments"] || doc[:attachments]).each do |attachment|
+      Array(doc["attachments"]).each do |attachment|
         definition.add_attachment(attachment["principal"], Array(attachment["policies"]))
       end
       definition.validate!
       definition
-    end
-
-    def add_actions(resource, operations)
-      @registry ||= {}
-      (@registry[resource] ||= Set.new).merge(operations)
     end
 
     def add_policy(name, statements)
@@ -62,10 +54,11 @@ module Placet
         raise DefinitionError, "principal が不正（type:id 形式・* 不可）: #{principal.inspect}"
       end
 
-      @attachments[principal] |= names
+      @attachments[principal] = (@attachments[principal] || []) | names
     end
 
-    def validate!
+    # registry を渡すと、action パターンのレジストリ照合（lint）もあわせて行う
+    def validate!(registry = nil)
       @attachments.each do |principal, names|
         names.each do |name|
           unless @policies.key?(name)
@@ -74,17 +67,9 @@ module Placet
         end
       end
       @policies.each do |name, statements|
-        statements.each { |st| st.actions.each { |pattern| validate_pattern!(pattern, name) } }
+        statements.each { |st| st.actions.each { |pattern| validate_pattern!(pattern, name, registry) } }
       end
       self
-    end
-
-    # action レジストリ照合（レジストリ未使用なら常に true）
-    def known_action?(action)
-      return true if @registry.nil?
-
-      resource, operation = action.split(":", 2)
-      @registry.key?(resource) && @registry[resource].include?(operation)
     end
 
     def to_canonical
@@ -102,25 +87,13 @@ module Placet
 
     private
 
-    def validate_pattern!(pattern, policy_name)
+    def validate_pattern!(pattern, policy_name, registry)
       unless pattern.is_a?(String) && pattern =~ ACTION_PATTERN_RE
         raise DefinitionError, "action パターンが不正: #{pattern.inspect} (policy: #{policy_name})"
       end
-      return if @registry.nil? || pattern == "*"
+      return if registry.nil? || registry.known_pattern?(pattern)
 
-      resource, operation = pattern.split(":", 2)
-      if resource != "*" && !@registry.key?(resource)
-        raise DefinitionError, "未知のリソース: #{pattern} (policy: #{policy_name})"
-      end
-      if operation != "*"
-        known =
-          if resource == "*"
-            @registry.values.any? { |ops| ops.include?(operation) }
-          else
-            @registry[resource].include?(operation)
-          end
-        raise DefinitionError, "未知の action: #{pattern} (policy: #{policy_name})" unless known
-      end
+      raise DefinitionError, "未知の action: #{pattern} (policy: #{policy_name})"
     end
   end
 end

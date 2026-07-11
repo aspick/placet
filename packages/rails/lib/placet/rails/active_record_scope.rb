@@ -16,32 +16,19 @@ module Placet
           if plan.kind == "all"
             model.all
           else
-            scopes_for(plan.include_relations, relations, user)
-              .map { |scope| model.where(pk => scope.select(pk)) }
-              .reduce { |a, b| a.or(b) }
+            Placet.relation_scopes(relations, plan.include_relations, user)
+                  .map { |scope| model.where(pk => scope.select(pk)) }
+                  .reduce { |a, b| a.or(b) }
           end
-        scopes_for(plan.exclude_relations, relations, user)
-          .reduce(base) { |rel, scope| rel.where.not(pk => scope.select(pk)) }
-      end
-
-      def scopes_for(names, relations, user)
-        relations.select { |r| names.include?(r.name) }.map { |r| r.scope.call(user) }
-      end
-    end
-
-    # Placet.scoped の実体化を ActiveRecord モデルのときだけ差し替える
-    module ScopedOverride
-      private
-
-      def materialize_scope(plan, rels, user, model)
-        if defined?(ActiveRecord::Base) && model.is_a?(Class) && model <= ActiveRecord::Base
-          ActiveRecordScope.compose(plan, rels, user, model)
-        else
-          super
-        end
+        Placet.relation_scopes(relations, plan.exclude_relations, user)
+              .reduce(base) { |rel, scope| rel.where.not(pk => scope.select(pk)) }
       end
     end
   end
 end
 
-Placet.singleton_class.prepend(Placet::Rails::ScopedOverride)
+# ActiveRecord モデルに対する ScopePlan の実体化として登録する
+Placet.register_scope_materializer(
+  ->(model) { defined?(ActiveRecord::Base) && model.is_a?(Class) && model <= ActiveRecord::Base },
+  Placet::Rails::ActiveRecordScope.method(:compose)
+)

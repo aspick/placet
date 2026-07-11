@@ -4,10 +4,7 @@ require_relative "test_helper"
 
 class ControllerIntegrationTest < ActionDispatch::IntegrationTest
   def setup
-    Post.delete_all
-    @p1 = Post.create!(id: 1, title: "acme roadmap", author_id: 1, tenant: "acme")
-    @p2 = Post.create!(id: 2, title: "bob's memo", author_id: 2, tenant: "acme")
-    @p3 = Post.create!(id: 3, title: "umbrella note", author_id: 3, tenant: "umbrella")
+    @p1, @p2, @p3 = create_fixture_posts!
   end
 
   def as(name) = { headers: { "X-User" => name } }
