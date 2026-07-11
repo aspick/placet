@@ -1,15 +1,15 @@
 PATH
   remote: ../ruby
   specs:
-    placet (0.0.1)
+    placet (0.1.0)
 
 PATH
   remote: .
   specs:
-    placet-rails (0.0.1)
+    placet-rails (0.1.0)
       actionpack (>= 7.1)
       activesupport (>= 7.1)
-      placet (>= 0.0.1)
+      placet (~> 0.1.0)
       railties (>= 7.1)
 
 GEM

@@ -4,7 +4,12 @@
 
 [placet](../../README.md) を Rails に統合するアダプタ gem。設計の全体像は [docs/rails-usage.md](../../docs/rails-usage.md) を参照。
 
-**RubyGems には未公開です。** 現時点で試す場合は `gem "placet-rails", path: ...` を使用してください。
+## インストール
+
+```ruby
+# Gemfile
+gem "placet-rails"   # placet 本体も依存として入る
+```
 
 ## 提供するもの
 

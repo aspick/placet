@@ -4,7 +4,14 @@
 
 placet の Ruby ランタイム（リファレンス実装）です。コア評価エンジン（PDP）・Ruby DSL・principal 導出（resolver / derive / relation）・scope 合成を実装し、[spec/conformance](../../spec/conformance) の適合性テストをすべてパスします。
 
-**RubyGems に公開されている 0.0.1 は名前確保のためのプレースホルダのままです**（実装入りのリリースは未定）。現時点で試す場合は `gem "placet", path: ...` または [examples/sinatra](../../examples/sinatra) を参照してください。
+## インストール
+
+```ruby
+# Gemfile
+gem "placet"
+```
+
+Rails 統合（宣言 DSL・ActiveRecord への scope 合成）には [placet-rails](../rails) を併用してください。動く例は [examples/sinatra](../../examples/sinatra) を参照。
 
 テストの実行:
 
