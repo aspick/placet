@@ -1,0 +1,12 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gemspec
+
+gem "placet", path: "../ruby"
+
+group :test do
+  gem "activerecord", ">= 7.1"
+  gem "sqlite3"
+end

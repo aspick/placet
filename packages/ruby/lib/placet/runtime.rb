@@ -63,6 +63,7 @@ module Placet
     end
 
     def authorize!(user, actions, resource = nil)
+      count_enforcement!
       Array(actions).each do |action|
         d = engine.decide(principals_for(user, resource), action)
         raise Denied.new(action, d) unless d.permit?
@@ -72,21 +73,19 @@ module Placet
 
     def permit?(user, actions, resource = nil) = decide(user, actions, resource).permit?
 
-    # 一覧の scope 合成。Engine の plan をインメモリコレクションへ写像する
-    # （ActiveRecord 等の ORM への写像はアダプタ gem の責務）
+    # 一覧の scope 合成。Engine の plan を materialize_scope でコレクションへ写像する。
+    # 既定はインメモリ配列で、ActiveRecord 等の ORM への写像はアダプタ gem が
+    # materialize_scope を prepend で差し替えて提供する
     def scoped(user, action, model:)
+      count_enforcement!
       rels = relations_for(model)
       plan = engine.scope_plan(principals_for(user).keys, action, relations: rels.map(&:name))
-      excluded = rels.select { |r| plan.exclude_relations.include?(r.name) }
-                     .flat_map { |r| r.scope.call(user) }
-      case plan.kind
-      when "empty" then []
-      when "all"   then model.all.to_a - excluded
-      else
-        rels.select { |r| plan.include_relations.include?(r.name) }
-            .flat_map { |r| r.scope.call(user) }.uniq - excluded
-      end
+      materialize_scope(plan, rels, user, model)
     end
+
+    # このスレッドで enforcement（authorize! / scoped）が行われた回数。
+    # PEP ヘルパーの呼び忘れ検知（docs/rails-usage.md 4.4）が参照する
+    def enforcements = Thread.current[:placet_enforcements] || 0
 
     def export = definition.to_canonical
 
@@ -103,5 +102,18 @@ module Placet
 
     def derive_hooks(type) = @derives ? @derives.fetch(type, []) : []
     def relations_for(klass) = @relations ? @relations.fetch(klass, []) : []
+    def count_enforcement! = Thread.current[:placet_enforcements] = enforcements + 1
+
+    def materialize_scope(plan, rels, user, model)
+      excluded = rels.select { |r| plan.exclude_relations.include?(r.name) }
+                     .flat_map { |r| r.scope.call(user) }
+      case plan.kind
+      when "empty" then []
+      when "all"   then model.all.to_a - excluded
+      else
+        rels.select { |r| plan.include_relations.include?(r.name) }
+            .flat_map { |r| r.scope.call(user) }.uniq - excluded
+      end
+    end
   end
 end

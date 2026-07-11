@@ -1,6 +1,6 @@
 # placet Rails アダプタ 設計ドキュメント（利用イメージ）
 
-- Status: Draft（実装前の設計固め。API 名・記法はすべて仮）
+- Status: Draft（Section 2〜4 の主要部は [packages/rails](../packages/rails) として実装済み。運用ツールの placet:explain、strict モード、action レジストリの呼び出し時検証は未実装）
 - 作成日: 2026-07-11
 - 前提: [concept.md](concept.md)（コンセプトと言語非依存仕様）
 

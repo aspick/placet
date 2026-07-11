@@ -49,8 +49,8 @@ attachments:
 - [x] 動作するサンプルアプリ（[examples/sinatra/](examples/sinatra/)）
 - [x] 適合性テスト fixture（[spec/conformance/](spec/conformance/)）
 - [x] リファレンス実装: Ruby ランタイム（[packages/ruby/](packages/ruby/)）
-- [ ] Rails アダプタ gem（placet-rails: 宣言 DSL・ActiveRecord への scope 写像）
-- [ ] 実装入りバージョンのリリース（現在公開中の 0.0.1 はプレースホルダ）
+- [x] Rails アダプタ gem（[packages/rails/](packages/rails/): 宣言 DSL・ActiveRecord への scope 写像・検証フック）
+- [ ] 実装入りバージョンのリリース（placet は公開中の 0.0.1 がプレースホルダのまま、placet-rails は未公開）
 
 ## リポジトリ構成
 
@@ -59,6 +59,7 @@ attachments:
 - `docs/` — コンセプトと設計判断の記録
 - `spec/` — コア仕様（正規形の JSON Schema・適合性テスト fixture、言語非依存）
 - `packages/ruby/` — Ruby ランタイム（gem: [placet](https://rubygems.org/gems/placet)）
+- `packages/rails/` — Rails アダプタ（gem: placet-rails、未公開）
 - `packages/js/` — JavaScript / TypeScript ランタイム（npm: [placet](https://www.npmjs.com/package/placet)）
 - `examples/sinatra/` — 設計を動かして体験できるサンプルアプリ（簡易ランタイム同梱）
 
