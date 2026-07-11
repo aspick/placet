@@ -399,6 +399,8 @@ Placet.authorize!(current_user, "post:update", post)
 
 という「明示的な入口 + 検知」の組み合わせで担保する。
 
+Rails アダプタの具体的な API 設計（宣言 DSL、Policy の Ruby DSL、feature principal パターン等）は [rails-usage.md](rails-usage.md) にまとめる。
+
 ## 9. 実装アーキテクチャ: 3 層構造
 
 多言語対応は次の 3 層で実現する。上の層ほど技術スタック固有になり、依存方向は常に下向き（アダプタ → ランタイム → コア仕様）とする。

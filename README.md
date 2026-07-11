@@ -45,6 +45,7 @@ attachments:
 
 - [x] コンセプトと設計判断の整理（[docs/concept.md](docs/concept.md)）
 - [x] 正規形の JSON Schema（[spec/schema/](spec/schema/policy-document.schema.json)）
+- [x] Rails / Ruby アダプタの API 設計（[docs/rails-usage.md](docs/rails-usage.md)）
 - [ ] リファレンス実装（Ruby ランタイム + 適合性 fixture）
 
 ## リポジトリ構成
